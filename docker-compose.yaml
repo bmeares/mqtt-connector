@@ -11,21 +11,18 @@ services:
 
     environment:
 
-      ### NOTE: Do not store secrets in your compose file;
-      ###       you may reference individual keys
-      ###       or the entire JSON from an environment variable.
-      MRSM_EXAMPLE_SECRET: |-
+      MRSM_MQTT_LOCAL: |-
         {
-          "username": "foo",
-          "password": "bar"
+          "host": "localhost"
         }
-
-      ### Feel free to override `sql:main` or add your own connectors.
-      ### Just make sure you also add them to `mrsm-compose.yaml` using the `MRSM{}` syntax.
-      # MRSM_SQL_MAIN: $MRSM_SQL_MAIN
 
     network_mode: "host"
     volumes:
       - "./:/app"
     init: true
     tty: true
+
+  mosquitto:
+    image: "eclipse-mosquitto"
+    network_mode: "host"
+
