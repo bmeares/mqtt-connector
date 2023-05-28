@@ -8,6 +8,7 @@ sync:
       metric: "foo_bar"
       columns:
         datetime: "timestamp"
+        topic: "topic"
       parameters:
         fetch:
           topic:
