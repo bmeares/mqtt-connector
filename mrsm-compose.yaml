@@ -17,10 +17,10 @@ sync:
 
 config:
   meerschaum:
-    instance: "sql:main"
+    instance: "sql:app"
     connectors:
       sql:
-        main: MRSM{meerschaum:connectors:sql:main}
+        app: MRSM{meerschaum:connectors:sql:app}
       mqtt:
         local: MRSM{meerschaum:connectors:mqtt:local}
 

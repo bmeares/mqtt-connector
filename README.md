@@ -224,7 +224,7 @@ Jump into a shell and begin emitting messages via the test action:
 
 ```bash
 docker compose exec -it mrsm-compose bash
-mrsm compose mqtt test --topics foo/temperature bar/temperature --loop --debug --min-seconds 3
+mrsm compose mqtt test --topics foo/1 bar/2 --loop --min-seconds 3
 ```
 
 In another terminal, start another shell, register the pipes, and start a syncing loop to subscribe and sync the incoming messages.
@@ -233,4 +233,108 @@ In another terminal, start another shell, register the pipes, and start a syncin
 docker compose exec -it mrsm-compose bash
 mrsm compose up --dry
 mrsm compose sync pipes --loop --min-seconds 120
+```
+
+### Connecting to an External Database
+
+The default instance for this example project is set to `sql:app`, a temporary SQLite file stored at `/meerschaum/sqlite/app.db`.
+
+You may change the value of `MRSM_SQL_APP` in `docker-compose.yaml` to an external database, e.g.:
+
+```yaml
+services:
+  mrsm-compose:
+    ...
+    environment:
+      MRSM_SQL_APP: "postgresql://foo:bar@localhost:5432/app"
+```
+
+Or you may provide the individual parts of the connector:
+
+```yaml
+services:
+  mrsm-compose:
+    ...
+    environment:
+      MRSM_SQL_APP: |-
+        {
+          "flavor: "timescaledb",
+          "username": "mrsm",
+          "password": "mrsm",
+          "host": "localhost",
+          "port": 5432,
+          "database": "meerschaum"
+        }
+```
+
+### Non-SQL Instance Connectors
+
+You might choose to add plugins that provide instance connectors (e.g. [`mongodb-connector`](https://github.com/bmeares/mongodb-connector)). Follow these steps on how to change your default instance to a `MongoDBConnector`:
+
+1. Add `mongodb-connector` to `plugins` in `mrsm-compose.yaml`:  
+    ```yaml
+    plugins:
+      - "mongodb-connector"
+    ```
+2. Under `config:meerschaum:connectors`, change `instance` to `mongodb:app` and add `mongodb:app`:  
+    ```yaml
+    config:
+      meerschaum:
+        instance: "mongodb:app"
+        connectors:
+          mongodb:
+            app:
+              uri: "mongodb://localhost:27017"
+              database: "app"
+    ```
+
+You may choose to reference your URI as an environment variable:
+
+> `.env`
+
+```bash
+SECRET_MONGO_URI='mongodb://localhost:27017'
+```
+
+> `mrsm-compose.yaml`
+
+```yaml
+config:
+  ...
+  connectors:
+    mongodb:
+      app:
+        uri: "$SECRET_MONGO_URI"
+        database: "app"
+```
+
+Or store the entire connector JSON in one variable and reference the base container configuration with `MRSM{}` symlinking:
+
+> `.env`
+
+```bash
+MRSM_MONGODB_APP='{
+  "uri": "mongodb://localhost:27017",
+  "database": "app"
+}'
+```
+
+> `docker-compose.yaml`
+
+```yaml
+services:
+  mrsm-compose:
+    ...
+    environment:
+      MRSM_MONGODB_APP: "$MRSM_MONGODB_APP"
+```
+
+> `mrsm-compose.yaml`
+
+```yaml
+config:
+  ...
+  connectors:
+    mongodb:
+      app: MRSM{meerschaum:connectors:mongodb:app}
 ```

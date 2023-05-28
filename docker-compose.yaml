@@ -11,6 +11,11 @@ services:
 
     environment:
 
+      MRSM_SQL_APP: |-
+        {
+          "database": "/meerschaum/sqlite/app.db",
+          "flavor": "sqlite"
+        }
       MRSM_MQTT_LOCAL: |-
         {
           "host": "localhost"
