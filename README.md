@@ -55,7 +55,7 @@ The following optional attributes are accepted (see [paho-mqtt](https://pypi.org
 - `username`
 - `password`
 - `keepalive`  
-  MQTT [Keep Alive](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc385349238) interval in seconds.
+  MQTT [Keep Alive](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc385349238) interval in seconds (default `60`).
 - `transport`  
   `'tcp'` (default) or `websockets` (testing needed)
 - `clean_session`
