@@ -13,6 +13,7 @@ from meerschaum.utils.typing import SuccessTuple, Callable, Any, Optional, Union
 from meerschaum.utils.warnings import warn, error
 from meerschaum.utils.debug import dprint
 from meerschaum.utils.pool import get_pool
+from meerschaum.utils.misc import filter_keywords
 
 
 def subscribe(
@@ -54,8 +55,6 @@ def subscribe(
     """
 
     topic_meta = self.topics.get(topic, {})
-    #  if topic_meta.get('qos', None) == qos:
-        #  return True, f"Already subscribed to topic '{topic}'."
 
     self.subscribe_client.on_message = self._on_message
     self.subscribe_client.on_connect = self._subscribe_on_connect
@@ -100,7 +99,7 @@ def _subscribe_on_connect(
         if return_code == 5:
             warn(f"Are the credentials for '{self}' correct?", stack=False)
 
-    for topic, topic_meta in self.topics.items():
+    for topic, topic_meta in [_ for _ in self.topics.items()]:
         client.subscribe(topic, qos=topic_meta.get('qos', 0))
 
 
@@ -128,7 +127,7 @@ def _on_message(
             if decode_payload
             else message.payload
         )
-        return callback(payload)
+        return callback(payload, **filter_keywords(callback, topic=message.topic))
 
     return self.pool.map(parse_matched_topic, matched_topics.keys())
 

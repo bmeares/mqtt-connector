@@ -9,7 +9,6 @@ Define the `fetch()` method for syncing into pipes.
 from datetime import datetime
 import meerschaum as mrsm
 from meerschaum.utils.typing import Any, List, SuccessTuple
-from meerschaum.utils.misc import parse_df_datetimes, df_from_literal
 from meerschaum.utils.formatting import print_tuple
 
 def fetch(
@@ -21,29 +20,23 @@ def fetch(
     Subscribe to the pipe's topics.
     """
 
-    if 'value' not in pipe.columns:
-        pipe.columns['value'] = 'value'
-
-    def _on_message_callback(payload: Any) -> None:
+    def _on_message_callback(payload: Any, topic: str = None) -> None:
         """
         Coerce the payload into a sync-able DataFrame.
         """
         check_existing = True
-        try:
-            if isinstance(payload, dict):
-                df = [payload]
-            elif isinstance(df, (list, float, str)):
-                df = df_from_literal(pipe, payload)
-                check_existing = False
-            else:
-                df = payload
-        except Exception as e:
-            df = None
-
-        if df is None:
+        if isinstance(payload, dict):
+            doc = payload.copy()
+            doc['topic'] = topic
+            df = [doc]
+        elif isinstance(payload, (int, float, str)):
+            now = datetime.utcnow()
             dt_col = pipe.columns.get('datetime', 'timestamp')
-            df = [{dt_col: datetime.utcnow(), 'value': payload}]
+            doc = {dt_col: datetime.utcnow(), 'value': payload, 'topic': topic}
+            df = [doc]
             check_existing = False
+        else:
+            df = payload
 
         kwargs['check_existing'] = check_existing
         print_tuple(pipe.sync(df, **kwargs))
