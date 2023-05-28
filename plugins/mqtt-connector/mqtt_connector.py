@@ -27,6 +27,7 @@ class MQTTConnector(Connector):
 
     from ._subscribe import subscribe, _subscribe_on_connect, _on_message, mqtt_topic_to_regex
     from ._publish import publish
+    from ._fetch import fetch, get_topics_from_pipe
 
 
     @property

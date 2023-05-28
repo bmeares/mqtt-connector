@@ -2,15 +2,16 @@ root_dir: "/meerschaum"
 project_name: "mqtt-connector"
 
 sync:
+  schedule: "every 120 seconds"
+  args: ["--debug"]
   pipes:
     - connector: "mqtt:local"
-      metric: "temperature"
+      metric: "foo"
       columns:
         datetime: "timestamp"
-        id: "device_id"
       parameters:
         fetch:
-          topic: "#/temperature"
+          topic: "foo/#"
 
 config:
   meerschaum:
