@@ -159,8 +159,8 @@ sync:
       parameters:
         fetch:
           topic:
-            - "foo/#/temperature"
-            - "bar/#/temperature"
+            - "foo/#"
+            - "bar/#"
 ```
 
 If your MQTT stream emits simple values, then your pipe will have the following columns:
