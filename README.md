@@ -10,7 +10,7 @@ See [**Methods**](#methods) below for code examples and [**Getting Started**](#g
 
 ## Installation
 
-Here's how to install this plugin dependending on your use-case:
+Here's how to install this plugin depending on your use-case:
 
 - To install into your current environment:  
   ```bash
