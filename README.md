@@ -276,7 +276,7 @@ You might choose to add plugins that provide instance connectors (e.g. [`mongodb
     plugins:
       - "mongodb-connector"
     ```
-2. Under `config:meerschaum:connectors`, change `instance` to `mongodb:app` and add `mongodb:app`:  
+2. Under `config:meerschaum`, change `instance` to `mongodb:app` and add `mongodb:app` to `connectors`:  
     ```yaml
     config:
       meerschaum:
