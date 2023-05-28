@@ -35,6 +35,10 @@ def fetch(
             doc = {dt_col: datetime.utcnow(), 'value': payload, 'topic': topic}
             df = [doc]
             check_existing = False
+        elif isinstance(payload, list):
+            if payload and isinstance(payload[0], dict):
+                for _doc in payload:
+                    _doc['topic'] = topic
         else:
             df = payload
 

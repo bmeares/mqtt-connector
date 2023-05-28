@@ -1,6 +1,52 @@
 # `mqtt-connector` Meerschaum Plugin
 
-The `mqtt-connector` plugin provides the `MQTTConnector`, which requires the attribute `host`.
+The `mqtt-connector` plugin provides the `MQTTConnector`, which allows you to easily connect to MQTT brokers from your code:
+
+- Easy-to-use `publish()` and `subscribe()` methods.
+- Map multiple callbacks to topics with a single connector.
+- Sync data from MQTT topics into Meerschaum pipes.
+
+See [**Methods**](#methods) below for code examples and [**Getting Started**](#getting-started) to quickly bring up a test environment.
+
+## Installation
+
+Here's how to install this plugin dependending on your use-case:
+
+- To install into your current environment:  
+  ```bash
+  mrsm install plugin mqtt-connector
+  ```
+
+- To add to your [Compose](https://meerschaum.io/reference/compose/) project:  
+  ```yaml
+  plugins:
+    - "mqtt-connector"
+  ```
+
+- To add as a dependency in your own [Meerschaum plugin](https://meerschaum.io/reference/plugins/writing-plugins/):  
+  ```python
+  required = ['mqtt-connector@api:mrsm']
+  ```
+
+- Or to test things out in a preconfigured environment, clone this repository and following the [Getting Started guide](#getting-started) below:  
+  ```bash
+  git clone https://github.com/bmeares/mqtt-connector
+  cd mqtt-connector
+  docker compose up -d
+  docker compose exec -it mrsm-compose bash
+  mrsm compose python
+  ```
+
+
+## Attributes
+
+The only required attribute for `MQTTConnector` is `host`. Consider `mqtt:local` for example:
+
+```bash
+export MRSM_MQTT_LOCAL='{
+  "host": "localhost"
+}'
+```
 
 The following optional attributes are accepted (see [paho-mqtt](https://pypi.org/project/paho-mqtt/) for more information):
 
@@ -11,14 +57,14 @@ The following optional attributes are accepted (see [paho-mqtt](https://pypi.org
 - `keepalive`  
   MQTT [Keep Alive](http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc385349238) interval in seconds.
 - `transport`  
-  `'tcp'` (default) or `websockets`
+  `'tcp'` (default) or `websockets` (testing needed)
 - `clean_session`
 
 ## Methods
 
 The fundamental methods for the `MQTTConnector` are `subscribe()` and `publish()`:
 
-> To test these code examples, run `mrsm compose python` in the container (see *Getting Started* below).
+> To test these code examples, run `mrsm compose python` in the container (see [Getting Started](#getting-started) below).
 
 ```python
 import meerschaum as mrsm
@@ -39,7 +85,7 @@ print(msgs)
 # [{'abc': 123}]
 ```
 
-You may subscribe to multiple topics with the same connector:
+You may subscribe to multiple topics with the same connector, mapping different callbacks to each:
 
 ```python
 import meerschaum as mrsm
@@ -132,9 +178,9 @@ This configuration always inserts (i.e. `--skip-check-existing`) because `timest
 
 ### Dictionary Payloads
 
-If the message payload is a dictionary, it will be synced as a one-row dataframe.
+If the message payload is a dictionary or a list of dictionaries, the `topic` key will be added to each document, and the documents will be passed into `pipe.sync()`.
 
-Otherwise the payload will be passed into `pipe.sync()` as-is (which may fail to sync, so be careful).
+If the payload is not a float, integer, string, dictionary, or list, then it will be passed into `pipe.sync()` as-is (but this will likely fail to sync, so be careful).
 
 ```python
 import meerschaum as mrsm
