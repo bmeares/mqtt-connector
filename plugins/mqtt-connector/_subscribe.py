@@ -9,6 +9,7 @@ Define methods for subscribing to MQTT topics.
 import re
 import json
 import functools
+import traceback
 from meerschaum.utils.typing import SuccessTuple, Callable, Any, Optional, Union, Dict
 from meerschaum.utils.warnings import warn, error
 from meerschaum.utils.debug import dprint
