@@ -6,16 +6,16 @@
 Define the `fetch()` method for syncing into pipes.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import meerschaum as mrsm
-from meerschaum.utils.typing import Any, List, SuccessTuple
+from meerschaum.utils.typing import Any, List
 from meerschaum.utils.formatting import print_tuple
 
 def fetch(
-        self,
-        pipe: mrsm.Pipe,
-        **kwargs: Any
-    ) -> bool:
+    self,
+    pipe: mrsm.Pipe,
+    **kwargs: Any
+) -> bool:
     """
     Subscribe to the pipe's topics.
     """
@@ -30,15 +30,15 @@ def fetch(
             doc['topic'] = topic
             df = [doc]
         elif isinstance(payload, (int, float, str)):
-            now = datetime.utcnow()
             dt_col = pipe.columns.get('datetime', 'timestamp')
-            doc = {dt_col: datetime.utcnow(), 'value': payload, 'topic': topic}
+            doc = {dt_col: datetime.now(timezone.utc), 'value': payload, 'topic': topic}
             df = [doc]
             check_existing = False
         elif isinstance(payload, list):
             if payload and isinstance(payload[0], dict):
                 for _doc in payload:
                     _doc['topic'] = topic
+            df = payload
         else:
             df = payload
 
@@ -65,4 +65,3 @@ def get_topics_from_pipe(pipe: mrsm.Pipe) -> List[str]:
         _topics = [_topics]
 
     return (_topic or []) + (_topics or [])
-

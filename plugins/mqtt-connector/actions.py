@@ -16,18 +16,22 @@ from meerschaum.utils.warnings import info
 
 @make_action
 def mqtt_test(
-        topics: Optional[List[str]] = None,
-        min_seconds: Union[float, int] = 1,
-        loop: bool = False,
-        **kwargs: Any
-    ) -> SuccessTuple:
+    topics: Optional[List[str]] = None,
+    connector_keys: Optional[List[str]] = None,
+    min_seconds: Union[float, int] = 1,
+    loop: bool = False,
+    **kwargs: Any
+) -> SuccessTuple:
     """
     Emit test messages with `mqtt:local`.
     """
     if not topics:
-        return False, f"Provide `--topics` for this action."
+        return False, "Provide `--topics` for this action."
 
-    conn = mrsm.get_connector('mqtt:local')
+    if not connector_keys:
+        return False, "Provide `-c` (`--connector-keys`)."
+
+    conn = mrsm.get_connector(connector_keys[0])
     num_messages = 0
 
     while True:
@@ -40,6 +44,7 @@ def mqtt_test(
             )
         if not loop:
             break
+
         info(f"Sleep for {min_seconds} seconds...")
         time.sleep(min_seconds)
 

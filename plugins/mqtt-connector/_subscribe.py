@@ -18,15 +18,15 @@ from meerschaum.utils.misc import filter_keywords
 
 
 def subscribe(
-        self,
-        topic: str,
-        callback: Callable[[Any], Any],
-        qos: int = 0,
-        blocking: bool = False,
-        decode_payload: bool = True,
-        debug: bool = False,
-        **kwargs: Any
-    ) -> SuccessTuple:
+    self,
+    topic: str,
+    callback: Callable[[Any], Any],
+    qos: int = 0,
+    blocking: bool = False,
+    decode_payload: bool = True,
+    debug: bool = False,
+    **kwargs: Any
+) -> SuccessTuple:
     """
     Subscribe to this connector's MQTT topic and fire a callback when a message is received.
 
@@ -70,7 +70,7 @@ def subscribe(
 
     try:
         self.subscribe_client.connect(self.host, self.port, self.keepalive)
-    except Exception as e:
+    except Exception:
         message = f"Failed to connect to MQTT host:\n{traceback.format_exc()}"
         return False, message
 
@@ -83,12 +83,12 @@ def subscribe(
 
 
 def _subscribe_on_connect(
-        self,
-        client: 'paho.mqtt.client.Client',
-        userdata: 'paho.mqtt.client.MQTTMessageInfo',
-        flags: Dict[str, int],
-        return_code: int,
-    ) -> None:
+    self,
+    client: 'paho.mqtt.client.Client',
+    userdata: 'paho.mqtt.client.MQTTMessageInfo',
+    flags: Dict[str, int],
+    return_code: int,
+) -> None:
     """
     Subscribe to the topic upon connecting (in case of disconnects).
     """
@@ -105,11 +105,11 @@ def _subscribe_on_connect(
 
 
 def _on_message(
-        self,
-        client: 'paho.mqtt.client.Client',
-        userdata: 'paho.mqtt.client.MQTTMessageInfo',
-        message: 'paho.mqtt.client.MQTTMessage',
-    ) -> Any:
+    self,
+    client: 'paho.mqtt.client.Client',
+    userdata: 'paho.mqtt.client.MQTTMessageInfo',
+    message: 'paho.mqtt.client.MQTTMessage',
+) -> Any:
     """
     When messages are received, invoke the correct callback.
     """

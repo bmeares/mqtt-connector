@@ -6,7 +6,6 @@
 Define the `MQTTConnector`.
 """
 
-from datetime import datetime
 import meerschaum as mrsm
 from meerschaum.connectors import make_connector, Connector
 from meerschaum.utils.typing import Optional, Any, List, Dict
