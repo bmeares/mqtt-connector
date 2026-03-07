@@ -24,6 +24,7 @@ def subscribe(
     qos: int = 0,
     blocking: bool = False,
     decode_payload: bool = True,
+    force: bool = False,
     debug: bool = False,
     **kwargs: Any
 ) -> SuccessTuple:
@@ -50,12 +51,15 @@ def subscribe(
         If `True`, decode the message payload bytes as UTF-8-encoded JSON.
         Otherwise pass the raw bytes into the callback.
 
+    force: bool, default False
+        Force a reconnect if the client has already subscribed to a topic.
+
     Returns
     -------
     A `SuccessTuple` indicating success.
     """
-
-    topic_meta = self.topics.get(topic, {})
+    if topic in self.topics and not force:
+        return True, "Already subscribed."
 
     self.subscribe_client.on_message = self._on_message
     self.subscribe_client.on_connect = self._subscribe_on_connect

@@ -3,15 +3,18 @@
 # vim:fenc=utf-8
 
 """
-Define the `fetch()` method for syncing into pipes.
+Define the `sync()` method for MQTT pipes.
 """
 
+import time
 from datetime import datetime, timezone
 import meerschaum as mrsm
 from meerschaum.utils.typing import Any, List
 from meerschaum.utils.formatting import print_tuple
+from meerschaum.utils.misc import items_str
 
-def fetch(
+
+def sync(
     self,
     pipe: mrsm.Pipe,
     **kwargs: Any
@@ -19,11 +22,13 @@ def fetch(
     """
     Subscribe to the pipe's topics.
     """
+    num_docs = 0
 
     def _on_message_callback(payload: Any, topic: str = None) -> None:
         """
         Coerce the payload into a sync-able DataFrame.
         """
+        nonlocal num_docs
         check_existing = True
         if isinstance(payload, dict):
             doc = payload.copy()
@@ -42,14 +47,17 @@ def fetch(
         else:
             df = payload
 
+        num_docs += len(df)
         kwargs['check_existing'] = check_existing
-        print_tuple(pipe.sync(df, **kwargs))
+        sync_success, sync_msg = pipe.sync(df, **kwargs)
+        new_msg = f"{pipe}: {sync_msg}"
+        print_tuple((sync_success, new_msg))
 
     topics = self.get_topics_from_pipe(pipe)
     for topic in topics:
-        self.subscribe(topic, _on_message_callback)
+        self.subscribe(topic, _on_message_callback, blocking=False)
 
-    return True
+    return True, f"Syncing {pipe} in a background thread."
 
 
 @staticmethod
