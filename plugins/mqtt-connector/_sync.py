@@ -6,12 +6,10 @@
 Define the `sync()` method for MQTT pipes.
 """
 
-import time
-from datetime import datetime, timezone
+import struct
 import meerschaum as mrsm
-from meerschaum.utils.typing import Any, List
+from meerschaum.utils.typing import Any, List, Dict, Union
 from meerschaum.utils.formatting import print_tuple
-from meerschaum.utils.misc import items_str
 
 
 def sync(
@@ -23,20 +21,26 @@ def sync(
     Subscribe to the pipe's topics.
     """
     num_docs = 0
+    pipe_params = pipe.parameters
+    mqtt_params = pipe_params.get('mqtt', {}) or {}
+    blocking = mqtt_params.get('blocking', False)
+    decode_payload = mqtt_params.get('decode_payload', mqtt_params.get('decode', True))
+    payload_parser = mqtt_params.get('payload_parser', None)
 
     def _on_message_callback(payload: Any, topic: str = None) -> None:
-        """
-        Coerce the payload into a sync-able DataFrame.
-        """
         nonlocal num_docs
+
         check_existing = True
-        if isinstance(payload, dict):
+        if payload_parser and isinstance(payload, bytes):
+            df = _parse_binary_payload(payload, payload_parser)
+            for doc in df:
+                doc['topic'] = topic
+        elif isinstance(payload, dict):
             doc = payload.copy()
             doc['topic'] = topic
             df = [doc]
         elif isinstance(payload, (int, float, str)):
-            dt_col = pipe.columns.get('datetime', 'timestamp')
-            doc = {dt_col: datetime.now(timezone.utc), 'value': payload, 'topic': topic}
+            doc = {'value': payload, 'topic': topic}
             df = [doc]
             check_existing = False
         elif isinstance(payload, list):
@@ -50,26 +54,117 @@ def sync(
         num_docs += len(df)
         kwargs['check_existing'] = check_existing
         sync_success, sync_msg = pipe.sync(df, **kwargs)
-        new_msg = f"{pipe}: {sync_msg}"
+        new_msg = f"{pipe} ({num_docs} docs):\n{sync_msg}"
         print_tuple((sync_success, new_msg))
 
-    topics = self.get_topics_from_pipe(pipe)
+    topics = self.get_topics_from_pipe(pipe_params)
     for topic in topics:
-        self.subscribe(topic, _on_message_callback, blocking=False)
+        self.subscribe(
+            topic,
+            _on_message_callback,
+            blocking=blocking,
+            decode_payload=decode_payload,
+        )
 
     return True, f"Syncing {pipe} in a background thread."
 
 
 @staticmethod
-def get_topics_from_pipe(pipe: mrsm.Pipe) -> List[str]:
+def get_topics_from_pipe(pipe: Union[mrsm.Pipe, Dict[str, Any]]) -> List[str]:
     """
     Return a list of configured topics for a given pipe.
     """
-    _topic = pipe.parameters.get('fetch', {}).get('topic', None)
-    _topics = pipe.parameters.get('fetch', {}).get('topics', None)
-    if isinstance(_topic, str):
-        _topic = [_topic]
-    if isinstance(_topics, str):
-        _topics = [_topics]
+    pipe_params = pipe.parameters if isinstance(pipe, mrsm.Pipe) else pipe
+    fetch_params = pipe_params.get('fetch', {}) or {}
+    mqtt_params = pipe_params.get('mqtt', {}) or {}
+    fetch_topic = fetch_params.get('topic', None) or []
+    fetch_topics = fetch_params.get('topics', None) or []
+    mqtt_topic = mqtt_params.get('topic', None) or []
+    mqtt_topics = mqtt_params.get('topics', None) or []
+    if isinstance(fetch_topic, str):
+        fetch_topic = [fetch_topic]
+    if isinstance(fetch_topics, str):
+        fetch_topics = [fetch_topics]
+    if isinstance(mqtt_topic, str):
+        mqtt_topic = [mqtt_topic]
+    if isinstance(mqtt_topics, str):
+        mqtt_topics = [mqtt_topics]
 
-    return (_topic or []) + (_topics or [])
+    return fetch_topic + fetch_topics + mqtt_topic + mqtt_topics
+
+
+def _parse_binary_payload(
+    payload: bytes,
+    parser: Dict[str, Union[str, List[str]]]
+) -> List[Dict[str, Any]]:
+    """
+    Unpack a binary payload according to a struct-format descriptor.
+
+    Parameters
+    ----------
+    payload: bytes
+        The incoming MQTT message payload.
+    
+    parser: Dict[str, str]
+        The dictionary defining the structure of the payload.
+
+    header_format: str
+        A `struct` format string for the fixed header.
+        Use `x` to skip bytes (e.g. `'<xQB'` skips 1 byte, reads uint64 + uint8).
+
+    header_fields: list[str]
+        Field names for each non-padding value in header_format.
+
+    record_count_field: str, optional
+        Name of the header field whose value gives the number of repeating records.
+        Omit (or set to null) when there is no variable-length record section.
+
+    record_format: str, optional
+        A `struct` format string for each repeating record.
+
+    record_fields: list[str], optional
+        Field names for each value in record_format.
+
+    Example pipe parameters
+    -----------------------
+    mqtt:
+      decode: false
+      parser:
+        header:
+            format: "<xQB"           # skip version byte, uint64 ts_ms, uint8 num_targets
+            fields: [timestamp_ms, num_targets]
+        record:
+            count_field: num_targets
+            format: "<Bff"           # uint8 target_id, float distance, float speed
+            fields: [target_id, distance, speed]
+    """
+    header_params = parser.get('header', {}) or {}
+    record_params = parser.get('record', {}) or {}
+
+    header_format = header_params.get('format', '')
+    header_fields = header_params.get('fields', [])
+    record_format = record_params.get('format', '')
+    record_fields = record_params.get('fields', [])
+    record_count_field = record_params.get('count_field', None)
+
+    offset = 0
+    header_doc: Dict[str, Any] = {}
+
+    if header_format and header_fields:
+        header_size = struct.calcsize(header_format)
+        header_values = struct.unpack_from(header_format, payload, offset)
+        offset += header_size
+        header_doc = dict(zip(header_fields, header_values))
+
+    num_records = int(header_doc.get(record_count_field, 1)) if record_count_field else 1
+
+    if record_format and record_fields:
+        record_size = struct.calcsize(record_format)
+        docs = []
+        for _ in range(num_records):
+            record_values = struct.unpack_from(record_format, payload, offset)
+            offset += record_size
+            docs.append({**header_doc, **dict(zip(record_fields, record_values))})
+        return docs
+
+    return [header_doc] if header_doc else []
