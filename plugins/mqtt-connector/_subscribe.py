@@ -71,18 +71,21 @@ def subscribe(
         },
     }
 
-    if not self.__dict__.get('_subscribe_loop_started', False):
-        try:
-            self.subscribe_client.connect(self.host, self.port, self.keepalive)
-        except Exception:
-            message = f"Failed to connect to MQTT host:\n{traceback.format_exc()}"
-            return False, message
+    with self._subscribe_lock:
+        loop_started = self.__dict__.get('_subscribe_loop_started', False)
+        if not loop_started:
+            try:
+                self.subscribe_client.connect(self.host, self.port, self.keepalive)
+            except Exception:
+                return False, f"Failed to connect to MQTT host:\n{traceback.format_exc()}"
+            if not blocking:
+                self.subscribe_client.loop_start()
+                self._subscribe_loop_started = True
+        elif not blocking:
+            self.subscribe_client.subscribe(topic, qos=qos)
 
-        if not blocking:
-            self.subscribe_client.loop_start()
-            self._subscribe_loop_started = True
-        else:
-            self.subscribe_client.loop_forever()
+    if not loop_started and blocking:
+        self.subscribe_client.loop_forever()
 
     return True, f"Subscribed to '{topic}' with quality-of-service level {qos}."
 

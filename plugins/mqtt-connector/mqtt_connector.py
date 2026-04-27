@@ -6,6 +6,7 @@
 Define the `MQTTConnector`.
 """
 
+import threading
 import meerschaum as mrsm
 from meerschaum.connectors import make_connector, Connector
 from meerschaum.utils.typing import Optional, Any, List, Dict
@@ -39,6 +40,15 @@ class MQTTConnector(Connector):
             _topics = {}
             self._topics = _topics
         return _topics
+
+
+    @property
+    def _subscribe_lock(self) -> threading.Lock:
+        lock = self.__dict__.get('__subscribe_lock', None)
+        if lock is None:
+            lock = threading.Lock()
+            self.__dict__['__subscribe_lock'] = lock
+        return lock
 
 
     @property
