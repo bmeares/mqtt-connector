@@ -10,6 +10,7 @@ import struct
 import meerschaum as mrsm
 from meerschaum.utils.typing import Any, List, Dict, Union
 from meerschaum.utils.formatting import print_tuple
+from meerschaum.utils.warnings import warn
 
 
 def sync(
@@ -48,8 +49,23 @@ def sync(
                 for _doc in payload:
                     _doc['topic'] = topic
             df = payload
+        elif isinstance(payload, bytes):
+            if not payload:
+                return
+            try:
+                df = [{'value': payload.decode('utf-8'), 'topic': topic}]
+                check_existing = False
+            except UnicodeDecodeError:
+                warn(
+                    f"Received binary payload on topic '{topic}' with no parser configured; skipping.",
+                    stack=False,
+                )
+                return
         else:
             df = payload
+
+        if not df:
+            return
 
         num_docs += len(df)
         kwargs['check_existing'] = check_existing

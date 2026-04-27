@@ -129,11 +129,19 @@ def _on_message(
         decode_payload = topic_meta['parser_kwargs']['decode_payload']
         callbacks = topic_meta['callbacks']
         raw = message.payload
-        payload = (
-            json.loads(raw.decode('utf-8'))
-            if decode_payload and raw
-            else raw
-        )
+        if decode_payload and raw:
+            try:
+                decoded = raw.decode('utf-8')
+            except UnicodeDecodeError as e:
+                warn(f"Failed to decode payload on topic '{message.topic}': {e}", stack=False)
+                payload = raw
+            else:
+                try:
+                    payload = json.loads(decoded)
+                except json.JSONDecodeError:
+                    payload = decoded
+        else:
+            payload = raw
         for callback in callbacks:
             callback(payload, **filter_keywords(callback, topic=message.topic))
 
