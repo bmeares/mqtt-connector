@@ -128,10 +128,11 @@ def _on_message(
         topic_meta = matched_topics[topic]
         decode_payload = topic_meta['parser_kwargs']['decode_payload']
         callbacks = topic_meta['callbacks']
+        raw = message.payload
         payload = (
-            json.loads(message.payload.decode('utf-8'))
-            if decode_payload
-            else message.payload
+            json.loads(raw.decode('utf-8'))
+            if decode_payload and raw
+            else raw
         )
         for callback in callbacks:
             callback(payload, **filter_keywords(callback, topic=message.topic))
