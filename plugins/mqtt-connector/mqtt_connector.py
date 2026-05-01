@@ -25,7 +25,14 @@ class MQTTConnector(Connector):
     DEFAULT_TRANSPORT: str = 'tcp'
     DEFAULT_CLEAN_SESSION: bool = True
 
-    from ._subscribe import subscribe, _subscribe_on_connect, _on_message, mqtt_topic_to_regex
+    from ._subscribe import (
+        subscribe,
+        _reset_subscribe_state,
+        _subscribe_on_connect,
+        _subscribe_on_disconnect,
+        _on_message,
+        mqtt_topic_to_regex,
+    )
     from ._publish import publish
     from ._sync import sync, get_topics_from_pipe
 
@@ -156,11 +163,20 @@ class MQTTConnector(Connector):
         """
         Disconnect the client before deletion.
         """
-        _clients = [
+        _subscribe_client = self.__dict__.get('_subscribe_client', None)
+        if _subscribe_client is not None:
+            try:
+                _subscribe_client.loop_stop()
+            except Exception:
+                pass
+
+        for _client in [
             self.__dict__.get('_client', None),
-            self.__dict__.get('_subscribe_client', None),
+            _subscribe_client,
             self.__dict__.get('_publish_client', None),
-        ]
-        for _client in _clients:
+        ]:
             if _client is not None:
-                _client.disconnect()
+                try:
+                    _client.disconnect()
+                except Exception:
+                    pass

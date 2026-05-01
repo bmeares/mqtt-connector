@@ -62,6 +62,7 @@ def subscribe(
 
     self.subscribe_client.on_message = self._on_message
     self.subscribe_client.on_connect = self._subscribe_on_connect
+    self.subscribe_client.on_disconnect = self._subscribe_on_disconnect
     self.topics[topic] = {
         'qos': qos,
         'callbacks': [callback],
@@ -75,8 +76,9 @@ def subscribe(
         loop_started = self.__dict__.get('_subscribe_loop_started', False)
         if not loop_started:
             try:
-                self.subscribe_client.connect(self.host, self.port, self.keepalive)
+                self.subscribe_client.connect_async(self.host, self.port, self.keepalive)
             except Exception:
+                self._reset_subscribe_state()
                 return False, f"Failed to connect to MQTT host:\n{traceback.format_exc()}"
             if not blocking:
                 self.subscribe_client.loop_start()
@@ -88,6 +90,26 @@ def subscribe(
         self.subscribe_client.loop_forever()
 
     return True, f"Subscribed to '{topic}' with quality-of-service level {qos}."
+
+
+def _reset_subscribe_state(self) -> None:
+    """
+    Tear down the subscribe client and clear all subscription state.
+    Called after a failed connect so the next attempt gets a clean slate.
+    """
+    old_client = self.__dict__.pop('_subscribe_client', None)
+    if old_client is not None:
+        try:
+            old_client.loop_stop()
+        except Exception:
+            pass
+        try:
+            old_client.disconnect()
+        except Exception:
+            pass
+    self.__dict__['_subscribe_loop_started'] = False
+    self._topics = {}
+    self._syncing_pipes = set()
 
 
 def _subscribe_on_connect(
@@ -110,6 +132,23 @@ def _subscribe_on_connect(
 
     for topic, topic_meta in list(self.topics.items()):
         client.subscribe(topic, qos=topic_meta.get('qos', 0))
+
+
+def _subscribe_on_disconnect(
+    self,
+    client: 'paho.mqtt.client.Client',
+    userdata: 'paho.mqtt.client.MQTTMessageInfo',
+    return_code: int,
+) -> None:
+    """
+    Attempt reconnect on unexpected disconnects.
+    """
+    if return_code == 0:
+        return
+    warn(
+        f"[{self}] Disconnected from '{self.host}' (rc={return_code}); paho will reconnect.",
+        stack=False,
+    )
 
 
 def _on_message(

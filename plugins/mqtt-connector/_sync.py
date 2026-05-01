@@ -7,8 +7,9 @@ Define the `sync()` method for MQTT pipes.
 """
 
 import struct
+import functools
 import meerschaum as mrsm
-from meerschaum.utils.typing import Any, List, Dict, Union
+from meerschaum.utils.typing import Any, List, Dict, Optional, Union
 from meerschaum.utils.formatting import print_tuple
 from meerschaum.utils.warnings import warn
 
@@ -21,68 +22,88 @@ def sync(
     """
     Subscribe to the pipe's topics.
     """
-    num_docs = 0
+    if not hasattr(self, '_syncing_pipes'):
+        self._syncing_pipes = set()
+
     pipe_params = pipe.parameters
     mqtt_params = pipe_params.get('mqtt', {}) or {}
     blocking = mqtt_params.get('blocking', False)
     decode_payload = mqtt_params.get('decode_payload', mqtt_params.get('decode', True))
     payload_parser = mqtt_params.get('payload_parser', None)
 
-    def _on_message_callback(payload: Any, topic: str = None) -> None:
-        nonlocal num_docs
-
-        check_existing = True
-        if payload_parser and isinstance(payload, bytes):
-            df = _parse_binary_payload(payload, payload_parser)
-            for doc in df:
-                doc['topic'] = topic
-        elif isinstance(payload, dict):
-            doc = payload.copy()
-            doc['topic'] = topic
-            df = [doc]
-        elif isinstance(payload, (int, float, str)):
-            doc = {'value': payload, 'topic': topic}
-            df = [doc]
-            check_existing = False
-        elif isinstance(payload, list):
-            if payload and isinstance(payload[0], dict):
-                for _doc in payload:
-                    _doc['topic'] = topic
-            df = payload
-        elif isinstance(payload, bytes):
-            if not payload:
-                return
-            try:
-                df = [{'value': payload.decode('utf-8'), 'topic': topic}]
-                check_existing = False
-            except UnicodeDecodeError:
-                warn(
-                    f"Received binary payload on topic '{topic}' with no parser configured; skipping.",
-                    stack=False,
-                )
-                return
-        else:
-            df = payload
-
-        if not df:
-            return
-
-        num_docs += len(df)
-        kwargs['check_existing'] = check_existing
-        sync_success, sync_msg = pipe.sync(df, **kwargs)
-        new_msg = f"{pipe} ({num_docs} docs):\n{sync_msg}"
-        print_tuple((sync_success, new_msg))
-
     topics = self.get_topics_from_pipe(pipe_params)
     for topic in topics:
+        pipe_topic_key = (topic, str(pipe))
+        if pipe_topic_key in self._syncing_pipes:
+            continue
+
+        num_docs_ref = [0]
+        callback = functools.partial(
+            _on_message_callback,
+            pipe=pipe,
+            payload_parser=payload_parser,
+            sync_kwargs=kwargs,
+            num_docs_ref=num_docs_ref,
+        )
         self.subscribe(
             topic,
-            _on_message_callback,
+            callback,
             blocking=blocking,
             decode_payload=decode_payload,
         )
+        self._syncing_pipes.add(pipe_topic_key)
 
     return True, f"Syncing {pipe} in a background thread."
+
+
+def _on_message_callback(
+    payload: Any,
+    pipe: mrsm.Pipe,
+    payload_parser: Optional[Dict[str, Any]],
+    sync_kwargs: Dict[str, Any],
+    num_docs_ref: List[int],
+    topic: str = None,
+) -> None:
+    check_existing = True
+    if payload_parser and isinstance(payload, bytes):
+        df = _parse_binary_payload(payload, payload_parser)
+        for doc in df:
+            doc['topic'] = topic
+    elif isinstance(payload, dict):
+        doc = payload.copy()
+        doc['topic'] = topic
+        df = [doc]
+    elif isinstance(payload, (int, float, str)):
+        doc = {'value': payload, 'topic': topic}
+        df = [doc]
+        check_existing = False
+    elif isinstance(payload, list):
+        if payload and isinstance(payload[0], dict):
+            for _doc in payload:
+                _doc['topic'] = topic
+        df = payload
+    elif isinstance(payload, bytes):
+        if not payload:
+            return
+        try:
+            df = [{'value': payload.decode('utf-8'), 'topic': topic}]
+            check_existing = False
+        except UnicodeDecodeError:
+            warn(
+                f"Received binary payload on topic '{topic}' with no parser configured; skipping.",
+                stack=False,
+            )
+            return
+    else:
+        df = payload
+
+    if not df:
+        return
+
+    num_docs_ref[0] += len(df)
+    sync_success, sync_msg = pipe.sync(df, **{**sync_kwargs, 'check_existing': check_existing})
+    new_msg = f"{pipe} ({num_docs_ref[0]} docs):\n{sync_msg}"
+    print_tuple((sync_success, new_msg))
 
 
 @staticmethod
