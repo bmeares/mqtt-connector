@@ -11,7 +11,7 @@ import functools
 import meerschaum as mrsm
 from meerschaum.utils.typing import Any, List, Dict, Optional, Union
 from meerschaum.utils.formatting import print_tuple
-from meerschaum.utils.warnings import warn
+from meerschaum.utils.warnings import warn, info
 
 
 def sync(
@@ -64,7 +64,7 @@ def _on_message_callback(
     num_docs_ref: List[int],
     topic: str = None,
 ) -> None:
-    check_existing = True
+    new_sync_kwargs = {k: v for k, v in sync_kwargs.items()}
     if payload_parser and isinstance(payload, bytes):
         df = _parse_binary_payload(payload, payload_parser)
         for doc in df:
@@ -73,27 +73,15 @@ def _on_message_callback(
         doc = payload.copy()
         doc['topic'] = topic
         df = [doc]
-    elif isinstance(payload, (int, float, str)):
+    elif isinstance(payload, (int, float, str, bytes)):
         doc = {'value': payload, 'topic': topic}
         df = [doc]
-        check_existing = False
+        new_sync_kwargs['check_existing'] = False
     elif isinstance(payload, list):
         if payload and isinstance(payload[0], dict):
             for _doc in payload:
                 _doc['topic'] = topic
         df = payload
-    elif isinstance(payload, bytes):
-        if not payload:
-            return
-        try:
-            df = [{'value': payload.decode('utf-8'), 'topic': topic}]
-            check_existing = False
-        except UnicodeDecodeError:
-            warn(
-                f"Received binary payload on topic '{topic}' with no parser configured; skipping.",
-                stack=False,
-            )
-            return
     else:
         df = payload
 
@@ -101,8 +89,19 @@ def _on_message_callback(
         return
 
     num_docs_ref[0] += len(df)
-    sync_success, sync_msg = pipe.sync(df, **{**sync_kwargs, 'check_existing': check_existing})
-    new_msg = f"{pipe} ({num_docs_ref[0]} docs):\n{sync_msg}"
+    pre_sync_msg = (
+        f"{pipe} received {len(df)} doc"
+        + ('s' if len(df) != 1 else '')
+        + ", syncing..."
+    )
+    info(pre_sync_msg)
+    sync_success, sync_msg = pipe.sync(df, **new_sync_kwargs)
+    new_msg = (
+        ("Synced" if sync_success else "Failed to sync")
+        + f" {len(df)} doc"
+        + ('s' if len(df) != 1 else '')
+        + f" to {pipe} ({num_docs_ref[0]} docs total):\n{sync_msg}"
+    )
     print_tuple((sync_success, new_msg))
 
 

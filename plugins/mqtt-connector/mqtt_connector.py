@@ -10,7 +10,7 @@ import threading
 import meerschaum as mrsm
 from meerschaum.connectors import make_connector, Connector
 from meerschaum.utils.typing import Optional, Any, List, Dict
-from meerschaum.utils.pool import get_pool
+
 
 
 @make_connector
@@ -150,13 +150,15 @@ class MQTTConnector(Connector):
     @property
     def pool(self) -> 'multiprocessing.pool.ThreadPool':
         """
-        Return the ThreadPool to use for callbacks.
+        Return a private ThreadPool for MQTT callbacks.
+        Not shared with Meerschaum's global pool to avoid termination on atexit.
         """
+        from multiprocessing.pool import ThreadPool
         _pool = self.__dict__.get('_pool', None)
-        if _pool is not None:
-            return _pool
-        self._pool = get_pool()
-        return self._pool
+        if _pool is None or _pool._state not in ('RUN', 0):
+            _pool = ThreadPool()
+            self._pool = _pool
+        return _pool
 
 
     def __del__(self) -> None:
@@ -167,6 +169,13 @@ class MQTTConnector(Connector):
         if _subscribe_client is not None:
             try:
                 _subscribe_client.loop_stop()
+            except Exception:
+                pass
+
+        _pool = self.__dict__.get('_pool', None)
+        if _pool is not None:
+            try:
+                _pool.terminate()
             except Exception:
                 pass
 

@@ -60,9 +60,6 @@ def subscribe(
             self.topics[topic]['callbacks'].append(callback)
         return True, "Already subscribed."
 
-    self.subscribe_client.on_message = self._on_message
-    self.subscribe_client.on_connect = self._subscribe_on_connect
-    self.subscribe_client.on_disconnect = self._subscribe_on_disconnect
     self.topics[topic] = {
         'qos': qos,
         'callbacks': [callback],
@@ -73,18 +70,22 @@ def subscribe(
     }
 
     with self._subscribe_lock:
+        client = self.subscribe_client
+        client.on_message = self._on_message
+        client.on_connect = self._subscribe_on_connect
+        client.on_disconnect = self._subscribe_on_disconnect
         loop_started = self.__dict__.get('_subscribe_loop_started', False)
         if not loop_started:
             try:
-                self.subscribe_client.connect_async(self.host, self.port, self.keepalive)
+                client.connect_async(self.host, self.port, self.keepalive)
             except Exception:
                 self._reset_subscribe_state()
                 return False, f"Failed to connect to MQTT host:\n{traceback.format_exc()}"
             if not blocking:
-                self.subscribe_client.loop_start()
+                client.loop_start()
                 self._subscribe_loop_started = True
         elif not blocking:
-            self.subscribe_client.subscribe(topic, qos=qos)
+            client.subscribe(topic, qos=qos)
 
     if not loop_started and blocking:
         self.subscribe_client.loop_forever()
@@ -171,7 +172,10 @@ def _on_message(
         decode_payload = topic_meta['parser_kwargs']['decode_payload']
         callbacks = topic_meta['callbacks']
         raw = message.payload
-        if decode_payload and raw:
+        if not raw:
+            return
+
+        if decode_payload:
             try:
                 decoded = raw.decode('utf-8')
             except UnicodeDecodeError as e:
