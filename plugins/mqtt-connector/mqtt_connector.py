@@ -9,7 +9,7 @@ Define the `MQTTConnector`.
 import threading
 import meerschaum as mrsm
 from meerschaum.connectors import make_connector, Connector
-from meerschaum.utils.typing import Optional, Any, List, Dict
+from meerschaum.utils.typing import Dict
 
 
 
@@ -134,12 +134,11 @@ class MQTTConnector(Connector):
         username = self.__dict__.get('username', None)
         password = self.__dict__.get('password', None)
 
-        with mrsm.Venv('mqtt-connector'):
-            from paho.mqtt.client import Client
-            _client = Client(
-                clean_session = self.clean_session,
-                transport = self.transport,
-            )
+        paho_mqtt_client = mrsm.attempt_import('paho.mqtt.client', venv='mqtt-connector', lazy=False)
+        _client = paho_mqtt_client.Client(
+            clean_session = self.clean_session,
+            transport = self.transport,
+        )
 
         if username and password:
             _client.username_pw_set(username=username, password=password)
