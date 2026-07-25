@@ -95,7 +95,22 @@ def _on_message_callback(
         + ", syncing..."
     )
     info(pre_sync_msg)
-    sync_success, sync_msg = pipe.sync(df, **new_sync_kwargs)
+    ### An exception here escapes into paho's network loop and permanently ends
+    ### ingest: `_syncing_pipes` blocks re-subscription, and a `sync pipes --loop`
+    ### job with a long `--min-seconds` will not come back around to retry. The
+    ### process stays alive, so the job still reports "running" while nothing is
+    ### being written. Surviving the error IS the recovery — the next message
+    ### checks out a fresh connection, so a restarted database heals itself.
+    try:
+        sync_success, sync_msg = pipe.sync(df, **new_sync_kwargs)
+    except Exception as e:
+        warn(
+            f"Failed to sync {len(df)} doc"
+            + ('s' if len(df) != 1 else '')
+            + f" to {pipe}, dropping them:\n{e}",
+            stack=False,
+        )
+        return
     new_msg = (
         ("Synced" if sync_success else "Failed to sync")
         + f" {len(df)} doc"
