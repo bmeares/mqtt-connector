@@ -66,7 +66,20 @@ def _on_message_callback(
 ) -> None:
     new_sync_kwargs = {k: v for k, v in sync_kwargs.items()}
     if payload_parser and isinstance(payload, bytes):
-        df = _parse_binary_payload(payload, payload_parser)
+        ### Same blast radius as the sync guard below, one step earlier: a
+        ### truncated or malformed frame raises struct.error in the paho callback
+        ### thread and permanently ends ingest. Anyone who can publish to the
+        ### broker can send one, and the fleet shares one credential — so drop
+        ### the bad frame instead of letting it escape.
+        try:
+            df = _parse_binary_payload(payload, payload_parser)
+        except Exception as e:
+            warn(
+                f"Failed to parse a {len(payload)}-byte binary payload on "
+                f"'{topic}', dropping it:\n{e}",
+                stack=False,
+            )
+            return
         for doc in df:
             doc['topic'] = topic
     elif isinstance(payload, dict):
